@@ -1,27 +1,50 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#FFF2BA"><title>벗길 | 달성군 길찾기</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#fffaf0;color:#302b20;font:17px/1.5 system-ui,-apple-system,sans-serif}header{background:#FFF2BA;padding:14px 20px;font-size:25px;font-weight:800}main{max-width:1200px;margin:auto;padding:20px;display:grid;grid-template-columns:minmax(310px,370px) 1fr;gap:16px}section{background:white;border:1px solid #eadca9;border-radius:16px;padding:18px}h1{font-size:24px;margin:0 0 5px}p{margin:6px 0;color:#655d49}label{display:block;font-weight:700;margin-top:16px}.row{display:flex;gap:7px;margin-top:5px}input{min-width:0;flex:1;padding:11px;border:1px solid #cfc6a8;border-radius:9px;font:inherit}button,a.go{font:inherit;font-weight:700;border:0;border-radius:9px;padding:10px 14px;background:#FFF2BA;color:#302b20;cursor:pointer}button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid #795900;outline-offset:2px}.results{display:grid;gap:6px;margin-top:7px}.result{text-align:left;background:#faf8ef;border:1px solid #eee7cd;font-size:15px}.result small{display:block;font-weight:400}.selected{font-size:15px;color:#5d5132}.go{display:block;text-align:center;text-decoration:none;margin-top:18px}.disabled,button:disabled{opacity:.5;cursor:not-allowed}.go{width:100%}.note{font-size:14px;padding:12px;background:#fff7de;border-radius:9px;margin-top:18px}#map{width:100%;height:600px;border-radius:12px;background:#f1eedf}#status{font-size:15px}.mapsection{padding:10px}@media(max-width:700px){main{grid-template-columns:1fr;padding:12px}#map{height:380px}.mapsection{grid-row:1}header{font-size:22px}}
-</style></head><body><header>벗길</header><main><section><h1>달성군 길찾기</h1><p>장소를 검색하고 출발지와 도착지를 선택하세요.</p>
+*{box-sizing:border-box}body{margin:0;background:#fffaf0;color:#302b20;font:17px/1.5 system-ui,-apple-system,sans-serif}header{background:#FFF2BA;padding:14px 20px;font-size:25px;font-weight:800}main{max-width:1200px;margin:auto;padding:20px;display:grid;grid-template-columns:minmax(310px,370px) 1fr;gap:16px}section{background:white;border:1px solid #eadca9;border-radius:16px;padding:18px}h1{font-size:24px;margin:0 0 5px}p{margin:6px 0;color:#655d49}label{display:block;font-weight:700;margin-top:16px}.row{display:flex;gap:7px;margin-top:5px}input{min-width:0;flex:1;padding:11px;border:1px solid #cfc6a8;border-radius:9px;font:inherit}button,a.go{font:inherit;font-weight:700;border:0;border-radius:9px;padding:10px 14px;background:#FFF2BA;color:#302b20;cursor:pointer}button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid #795900;outline-offset:2px}.results{display:grid;gap:6px;margin-top:7px}.result{text-align:left;background:#faf8ef;border:1px solid #eee7cd;font-size:15px}.result small{display:block;font-weight:400}.selected{font-size:15px;color:#5d5132}.go{display:block;text-align:center;text-decoration:none;margin-top:18px}.disabled,button:disabled{opacity:.5;cursor:not-allowed}.go{width:100%}.note{font-size:14px;padding:12px;background:#fff7de;border-radius:9px;margin-top:18px}#map{width:100%;height:600px;border-radius:12px;background:#f1eedf}#status{font-size:15px}.mapsection{padding:10px;grid-column:2;grid-row:1 / span 2}@media(max-width:700px){main{grid-template-columns:1fr;padding:12px}#map{height:380px}.mapsection{grid-column:1;grid-row:1}header{font-size:22px}}
+textarea{width:100%;font:inherit;border:1px solid #cfc6a8;border-radius:9px;padding:10px;resize:none;overflow-y:hidden}.suggestion-list{padding-left:22px}.building-info{font-size:15px;background:#fff7de;padding:10px;border-radius:9px;margin-top:8px}.osm-controls{padding:12px 8px 4px}.osm-controls button{min-height:44px}.osm-controls p{font-size:14px}.osm-list{margin:8px 0;padding:0;list-style:none;display:grid;gap:6px}.osm-list button{width:100%;text-align:left;background:#faf8ef;border:1px solid #eee7cd;font-size:15px}.osm-popup{padding:10px;min-width:190px;line-height:1.5;font-size:14px}.osm-popup strong{display:block}.osm-popup a{color:#765900}.osm-attribution{font-size:13px}.osm-attribution a{color:#5d5132}</style></head><body><header>벗길</header><main><section><h1>달성군 길찾기</h1><p>장소를 검색하고 출발지와 도착지를 선택하세요.</p>
 <label for="from">출발지</label><div class="row"><input id="from" placeholder="예: 달성군청"><button id="from-search" type="button">검색</button></div><div id="from-results" class="results"></div><p id="from-selected" class="selected"></p>
-<label for="to">도착지</label><div class="row"><input id="to" placeholder="예: 달성군 장애인복지관"><button id="to-search" type="button">검색</button></div><div id="to-results" class="results"></div><p id="to-selected" class="selected"></p>
-<p id="status" role="status">지도를 불러오는 중입니다.</p><button id="route-link" class="go" type="button" disabled>벗길에서 길찾기</button><div id="route-details" aria-live="polite"></div>
+<label for="to">도착지</label><div class="row"><input id="to" placeholder="예: 달성군 장애인복지관"><button id="to-search" type="button">검색</button></div><div id="to-results" class="results"></div><p id="to-selected" class="selected"></p><div id="building-info" class="building-info" role="status">도착지를 선택하면 휠체어 이용 정보를 확인합니다.</div><button id="retry-building" type="button" hidden>휠체어 정보 다시 확인</button>
+<p id="status" role="status">지도를 불러오는 중입니다.</p><button id="route-link" class="go" type="button" disabled>벗길에서 길찾기</button><div id="route-details" aria-live="polite"></div><div id="other-modes" hidden><div class="row"><button id="transit-time" type="button">대중교통 시간</button><button id="car-time" type="button">자동차 시간</button></div><p id="mode-status" role="status"></p><p>대중교통과 차량의 휠체어 이용 가능 여부는 확인되지 않았습니다.</p></div>
 <p class="note">카카오맵의 일반 도보 경로를 표시합니다. 경사로, 계단, 단차와 재난 위험은 아직 반영되지 않습니다.</p></section>
-<section class="mapsection"><div id="map" aria-label="달성군 카카오맵"></div></section></main>
+<section><h2>건의 사항</h2><p>벗길에 바라는 점을 남겨 주세요.</p><form id="suggestion-form"><label for="suggestion">내용</label><textarea id="suggestion" rows="3" maxlength="1000" required></textarea><button type="submit">건의 사항 남기기</button></form><p id="suggestion-status" role="status"></p><h3>등록된 건의 사항</h3><ul id="suggestions" class="suggestion-list"></ul></section><section class="mapsection"><div id="map" aria-label="달성군 카카오맵"></div><p id="route-legend" hidden>경로 색상 · 도보 🟤 · 대중교통 🔵 · 자동차 🔴</p><div class="osm-controls"><button id="load-osm" type="button" disabled>현재 지도에서 계단·경사로 찾기</button><p id="osm-status" role="status">지도를 불러오는 중입니다.</p><ul id="osm-list" class="osm-list" aria-label="계단과 경사로 검색 결과"></ul><p class="osm-attribution">계단·경사로 정보 © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap 기여자</a></p></div></section></main>
 <script>
 let map, places, routeLine;
+let otherRouteLines = [];
+let osmOverlays = [];
+let osmRequest = 0;
+let osmInfoWindow;
 let routeRequest = 0;
+let modeRequest = 0;
 const selected = {from:null,to:null};
 const markers = {from:null,to:null};
 const get = id => document.getElementById(id);
 function setStatus(message){get('status').textContent=message}
+function formatDuration(seconds) {
+  const minutes = Math.ceil(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+  if (!hours) return minutes + '분';
+  return hours + '시간' + (remaining ? ' ' + remaining + '분' : '');
+}
+function clearOtherRoute() {
+  otherRouteLines.forEach(line => line.setMap(null));
+  otherRouteLines = [];
+}
 function updateLink(){
   get('route-link').disabled = !selected.from || !selected.to;
 }
 function clearRoute(){
   routeRequest++;
   if(routeLine){routeLine.setMap(null);routeLine=null}
+  clearOtherRoute();
+  get('route-legend').hidden = true;
   get('route-details').replaceChildren();
+  modeRequest++;
+  get('other-modes').hidden = true;
+  get('mode-status').textContent = '';
+  get('transit-time').disabled = false;
+  get('car-time').disabled = false;
 }
 async function findRoute(){
   if(!selected.from || !selected.to) return;
@@ -42,18 +65,98 @@ async function findRoute(){
     routeLine=new kakao.maps.Polyline({map,path,strokeWeight:6,strokeColor:'#a97c00',strokeOpacity:0.9,strokeStyle:'solid'});
     const bounds=new kakao.maps.LatLngBounds();path.forEach(point=>bounds.extend(point));map.setBounds(bounds,60,60,60,60);
     const summary=document.createElement('p');
-    summary.textContent='거리 '+data.route.properties.totalDistance.toLocaleString('ko-KR')+'m · 도보 약 '+Math.ceil(data.route.properties.totalTime/60)+'분';
+    summary.textContent='거리 '+data.route.properties.totalDistance.toLocaleString('ko-KR')+'m · 도보 약 '+formatDuration(data.route.properties.totalTime);
+    get('route-legend').hidden = false;
     const list=document.createElement('ol');
-    steps.forEach(step=>{if(step.properties?.guidance){const item=document.createElement('li');item.textContent=step.properties.guidance;list.append(item)}});
+    const directions = steps.filter(step => step.properties?.guidance);
+    directions.forEach((step, index) => {
+      const item = document.createElement('li');
+      item.textContent = step.properties.guidance;
+      if (index >= 5) item.hidden = true;
+      list.append(item);
+    });
     get('route-details').append(summary,list);
+    if (directions.length > 5) {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.textContent = '전체 구간 펼치기';
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.addEventListener('click', () => {
+        const expanded = toggle.getAttribute('aria-expanded') !== 'true';
+        Array.from(list.children).slice(5).forEach(item => { item.hidden = !expanded; });
+        toggle.setAttribute('aria-expanded', String(expanded));
+        toggle.textContent = expanded ? '접기' : '전체 구간 펼치기';
+      });
+      get('route-details').append(toggle);
+    }
+    get('other-modes').hidden = data.route.properties.totalTime < 600;
     setStatus('일반 도보 경로입니다. 휠체어 통행 가능 여부는 확인되지 않았습니다.');
   }catch(error){if(request===routeRequest)setStatus(error.message || '경로를 불러오지 못했습니다.');}
   finally{if(request===routeRequest)updateLink();}
 }
+async function showTravelTime(mode) {
+  if (!selected.from || !selected.to || get('other-modes').hidden) return;
+  const request = routeRequest;
+  const currentModeRequest = ++modeRequest;
+  get('transit-time').disabled = false;
+  get('car-time').disabled = false;
+  clearOtherRoute();
+  const label = mode === 'transit' ? '대중교통' : '자동차';
+  const button = get(mode === 'transit' ? 'transit-time' : 'car-time');
+  const params = new URLSearchParams({start_x:selected.from.x,start_y:selected.from.y,end_x:selected.to.x,end_y:selected.to.y,mode});
+  button.disabled = true;
+  get('mode-status').textContent = label + ' 시간을 확인하고 있습니다.';
+  try {
+    const response = await fetch('/api/route?' + params);
+    const data = await response.json();
+    if (request !== routeRequest || currentModeRequest !== modeRequest) return;
+    if (!response.ok) throw new Error(data.message || '시간을 불러오지 못했습니다.');
+    let seconds;
+    let segments;
+    if (mode === 'transit') {
+      if (data.status !== 'OK') throw new Error('이 구간의 대중교통 경로를 찾지 못했습니다.');
+      const routes = (data.routes || []).filter(route => Number.isFinite(route.properties?.totalTime) && route.properties.totalTime >= 0);
+      if (!routes.length) throw new Error('대중교통 소요 시간을 확인할 수 없습니다.');
+      const route = routes.reduce((fastest, candidate) => candidate.properties.totalTime < fastest.properties.totalTime ? candidate : fastest);
+      seconds = route.properties.totalTime;
+      segments = (route.steps || []).map(step => step.path?.points || []);
+    } else {
+      const route = data.routes?.[0];
+      if (!route || route.result_code !== 0 || !Number.isFinite(route.summary?.duration)) throw new Error('이 구간의 자동차 소요 시간을 확인할 수 없습니다.');
+      seconds = route.summary.duration;
+      segments = (route.sections || []).flatMap(section => (section.roads || []).map(road => {
+        const vertices = road.vertexes || [];
+        const points = [];
+        for (let i = 0; i + 1 < vertices.length; i += 2) points.push([vertices[i], vertices[i + 1]]);
+        return points;
+      }));
+    }
+    clearOtherRoute();
+    const bounds = new kakao.maps.LatLngBounds();
+    let pointCount = 0;
+    segments.forEach(segment => {
+      const path = segment.filter(point => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1]))
+        .map(([x, y]) => new kakao.maps.LatLng(y, x));
+      if (path.length < 2) return;
+      path.forEach(point => bounds.extend(point));
+      pointCount += path.length;
+      otherRouteLines.push(new kakao.maps.Polyline({map, path, strokeWeight:6, strokeColor:mode === 'transit' ? '#1765c2' : '#c13935', strokeOpacity:0.9, strokeStyle:'solid'}));
+    });
+    if (pointCount) map.setBounds(bounds,60,60,60,60);
+    get('mode-status').textContent = label + ' 예상 시간 · 약 ' + formatDuration(seconds) + (pointCount ? ' · 지도에 표시됨' : ' · 경로 좌표를 받지 못했습니다.');
+  } catch (error) {
+    if (request === routeRequest && currentModeRequest === modeRequest) get('mode-status').textContent = error.message || label + ' 시간을 불러오지 못했습니다.';
+  } finally {
+    if (request === routeRequest && currentModeRequest === modeRequest) button.disabled = false;
+  }
+}
+get('transit-time').addEventListener('click', () => showTravelTime('transit'));
+get('car-time').addEventListener('click', () => showTravelTime('car'));
 get('route-link').addEventListener('click',findRoute);
 function choosePlace(type,place){
   clearRoute();
   selected[type]=place;
+  if(type==='to') loadBuildingInfo(place);
   get(type).value=place.place_name;
   get(type+'-selected').textContent='선택됨 · '+place.place_name+' · '+(place.road_address_name || place.address_name);
   get(type+'-results').replaceChildren();
@@ -90,14 +193,185 @@ function searchPlace(type){
 }
 for(const type of ['from','to']){
   get(type+'-search').addEventListener('click',()=>searchPlace(type));
-  get(type).addEventListener('input',()=>{clearRoute();selected[type]=null;get(type+'-selected').textContent='';get(type+'-results').replaceChildren();if(markers[type]){markers[type].setMap(null);markers[type]=null}updateLink()});
+  get(type).addEventListener('input',()=>{if(type==='to'){buildingRequest++;get('retry-building').hidden=true;get('building-info').textContent='도착지를 선택하면 휠체어 이용 정보를 확인합니다.';}clearRoute();selected[type]=null;get(type+'-selected').textContent='';get(type+'-results').replaceChildren();if(markers[type]){markers[type].setMap(null);markers[type]=null}updateLink()});
   get(type).addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();searchPlace(type)}});
 }
+function clearOsm() {
+  osmOverlays.forEach(overlay => overlay.setMap(null));
+  osmOverlays = [];
+  if (osmInfoWindow) osmInfoWindow.close();
+  get('osm-list').replaceChildren();
+}
+function describeOsm(tags) {
+  if (tags.highway === 'steps') {
+    const hasRamp = tags['ramp:wheelchair'] === 'yes' || tags.ramp === 'yes' || tags.ramp === 'separate';
+    return hasRamp ? '계단 · 경사로 태그 있음' : '계단';
+  }
+  return '경사로 태그 있음';
+}
+function showOsmFeature(feature, position) {
+  const tags = feature.tags || {};
+  const content = document.createElement('div');
+  content.className = 'osm-popup';
+  const heading = document.createElement('strong');
+  heading.textContent = describeOsm(tags);
+  content.append(heading);
+  const information = document.createElement('span');
+  const details = [];
+  if (tags.incline) details.push('경사 ' + tags.incline);
+  if (tags.wheelchair) details.push('휠체어 ' + tags.wheelchair);
+  if (tags['step_count']) details.push('계단 ' + tags['step_count'] + '개');
+  information.textContent = details.length ? details.join(' · ') : '상세 정보 미확인';
+  content.append(information, document.createElement('br'));
+  const link = document.createElement('a');
+  link.href = 'https://www.openstreetmap.org/' + feature.type + '/' + feature.id;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = 'OpenStreetMap에서 보기';
+  content.append(link);
+  osmInfoWindow.setContent(content);
+  osmInfoWindow.setPosition(position);
+  osmInfoWindow.open(map);
+}
+async function loadOsmFeatures() {
+  if (!map) return;
+  const bounds = map.getBounds();
+  const southWest = bounds.getSouthWest();
+  const northEast = bounds.getNorthEast();
+  const south = southWest.getLat();
+  const west = southWest.getLng();
+  const north = northEast.getLat();
+  const east = northEast.getLng();
+  if (north - south > 0.07 || east - west > 0.09) {
+    get('osm-status').textContent = '지도를 더 확대한 뒤 다시 검색해 주세요.';
+    return;
+  }
+  const requestId = ++osmRequest;
+  const button = get('load-osm');
+  button.disabled = true;
+  get('osm-status').textContent = '현재 지도의 정보를 불러오는 중입니다.';
+  const bbox = [south, west, north, east].map(value => value.toFixed(5)).join(',');
+  const query = '[out:json][timeout:25];(nwr["highway"="steps"](' + bbox + ');nwr["ramp:wheelchair"="yes"](' + bbox + ');nwr["ramp"="yes"]["highway"](' + bbox + ');nwr["ramp"="separate"]["highway"](' + bbox + '););out center 250;';
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    let response;
+    try {
+      response = await fetch('https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query), {signal: controller.signal});
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const data = await response.json();
+    if (requestId !== osmRequest) return;
+    clearOsm();
+    const seen = new Set();
+    const features = (data.elements || []).filter(feature => {
+      const id = feature.type + '/' + feature.id;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return Number.isFinite(feature.lat ?? feature.center?.lat) && Number.isFinite(feature.lon ?? feature.center?.lon);
+    });
+    features.forEach(feature => {
+      const position = new kakao.maps.LatLng(feature.lat ?? feature.center.lat, feature.lon ?? feature.center.lon);
+      const label = document.createElement('div');
+      label.textContent = feature.tags?.highway === 'steps' ? '계단' : '경사로';
+      label.style.cssText = 'background:#fff;border:2px solid #755c00;border-radius:18px;padding:4px 8px;font-size:13px;font-weight:700;color:#302b20;white-space:nowrap;cursor:pointer';
+      label.addEventListener('click', () => showOsmFeature(feature, position));
+      const overlay = new kakao.maps.CustomOverlay({map, position, content:label, yAnchor:1});
+      osmOverlays.push(overlay);
+      const item = document.createElement('li');
+      const featureButton = document.createElement('button');
+      featureButton.type = 'button';
+      featureButton.textContent = describeOsm(feature.tags || {}) + (feature.tags?.name ? ' · ' + feature.tags.name : '');
+      featureButton.addEventListener('click', () => { map.setCenter(position); showOsmFeature(feature, position); });
+      item.append(featureButton);
+      get('osm-list').append(item);
+    });
+    get('osm-status').textContent = features.length ? '현재 지도에서 ' + features.length + '곳을 찾았습니다. 등록되지 않은 구간은 확인되지 않았습니다.' : '현재 지도에서 등록된 계단·경사로를 찾지 못했습니다. 통행 가능 여부는 확인되지 않았습니다.';
+  } catch (error) {
+    if (requestId === osmRequest) {
+      clearOsm();
+      get('osm-status').textContent = 'OpenStreetMap 서버가 응답하지 않아 계단·경사로 정보를 확인하지 못했습니다. 버튼을 눌러 다시 시도해 주세요.';
+    }
+  } finally {
+    if (requestId === osmRequest) button.disabled = false;
+  }
+}
+get('load-osm').addEventListener('click', loadOsmFeatures);
+let buildingRequest = 0;
+get('retry-building').addEventListener('click', () => { if (selected.to) loadBuildingInfo(selected.to); });
+async function loadBuildingInfo(place) {
+  const requestId = ++buildingRequest;
+  const panel = get('building-info');
+  get('retry-building').hidden = true;
+  panel.textContent = '공공데이터에서 편의시설 정보를 확인하고 있습니다.';
+  try {
+    const params = new URLSearchParams({name:place.place_name,lat:place.y,lon:place.x});
+    const response = await fetch('/api/facility?' + params);
+    const data = await response.json();
+    if (requestId !== buildingRequest) return;
+    if (!response.ok) throw new Error(data.message || '편의시설 정보를 불러오지 못했습니다.');
+    if (data.status !== 'found') {
+      panel.textContent = '공공데이터에서 일치하는 건물의 편의시설을 확인하지 못했습니다. 휠체어 이용 여부는 확인되지 않았습니다.';
+      return;
+    }
+    panel.textContent = '공공데이터에 등록된 편의시설 · ' + data.facilities.join(', ') + '. 실제 이용 가능 여부는 현장에서 확인해 주세요.';
+  } catch (error) {
+    if (requestId === buildingRequest) {
+      panel.textContent = error.message || '편의시설 정보를 불러오지 못했습니다.';
+      get('retry-building').hidden = false;
+    }
+  }
+}
+async function getSuggestions() {
+  const status = get('suggestion-status');
+  try {
+    const response = await fetch('/api/suggestions');
+    if (!response.ok) throw new Error();
+    const data = await response.json();
+    const items = data.suggestions.map(suggestion => {
+      const item = document.createElement('li');
+      item.textContent = suggestion.content;
+      return item;
+    });
+    get('suggestions').replaceChildren(...items);
+  } catch (error) { status.textContent = '건의 사항을 불러오지 못했습니다.'; }
+}
+function resizeSuggestion() {
+  const input = get('suggestion');
+  input.style.height = 'auto';
+  const borderHeight = input.offsetHeight - input.clientHeight;
+  input.style.height = (input.scrollHeight + borderHeight) + 'px';
+}
+get('suggestion').addEventListener('input', resizeSuggestion);
+window.addEventListener('resize', resizeSuggestion);
+get('suggestion-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const input = get('suggestion');
+  const content = input.value.trim();
+  if (!content) { get('suggestion-status').textContent = '내용을 입력해 주세요.'; return; }
+  const button = event.currentTarget.querySelector('button');
+  button.disabled = true;
+  try {
+    const response = await fetch('/api/suggestions', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content})});
+    if (!response.ok) throw new Error();
+    input.value = '';
+    resizeSuggestion();
+    await getSuggestions();
+    get('suggestion-status').textContent = '건의 사항을 저장했습니다.';
+  } catch (error) { get('suggestion-status').textContent = '저장하지 못했습니다. 다시 시도해 주세요.'; }
+  finally { button.disabled = false; }
+});
+getSuggestions();
 function initMap(){
   if(!window.kakao?.maps?.load){setStatus('카카오맵을 불러오지 못했습니다. 키와 도메인을 확인하세요.');return}
   kakao.maps.load(()=>{
     map=new kakao.maps.Map(get('map'),{center:new kakao.maps.LatLng(35.7739,128.4309),level:6});
     places=new kakao.maps.services.Places();
+    osmInfoWindow = new kakao.maps.InfoWindow({removable:true});
+    get('load-osm').disabled = false;
+    get('osm-status').textContent = '지도를 확대하고 버튼을 눌러 주변 정보를 확인하세요.';
     setStatus('출발지와 도착지를 검색해 주세요.');
   });
 }
