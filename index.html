@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#FFF2BA"><title>벗길 | 달성군 길찾기</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#fffaf0;color:#302b20;font:17px/1.5 system-ui,-apple-system,sans-serif}header{background:#FFF2BA;padding:14px 20px;font-size:25px;font-weight:800}main{max-width:1200px;margin:auto;padding:20px;display:grid;grid-template-columns:minmax(310px,370px) 1fr;gap:16px}section{background:white;border:1px solid #eadca9;border-radius:16px;padding:18px}h1{font-size:24px;margin:0 0 5px}p{margin:6px 0;color:#655d49}label{display:block;font-weight:700;margin-top:16px}.row{display:flex;gap:7px;margin-top:5px}input{min-width:0;flex:1;padding:11px;border:1px solid #cfc6a8;border-radius:9px;font:inherit}button,a.go{font:inherit;font-weight:700;border:0;border-radius:9px;padding:10px 14px;background:#FFF2BA;color:#302b20;cursor:pointer}button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid #795900;outline-offset:2px}.results{display:grid;gap:6px;margin-top:7px}.result{text-align:left;background:#faf8ef;border:1px solid #eee7cd;font-size:15px}.result small{display:block;font-weight:400}.selected{font-size:15px;color:#5d5132}.go{display:block;text-align:center;text-decoration:none;margin-top:18px}.disabled,button:disabled{opacity:.5;cursor:not-allowed}.go{width:100%}.note{font-size:14px;padding:12px;background:#fff7de;border-radius:9px;margin-top:18px}#map{width:100%;height:600px;border-radius:12px;background:#f1eedf}#status{font-size:15px}.mapsection{padding:10px}@media(max-width:700px){main{grid-template-columns:1fr;padding:12px}#map{height:380px}.mapsection{grid-row:1}header{font-size:22px}}
+</style></head><body><header>벗길</header><main><section><h1>달성군 길찾기</h1><p>장소를 검색하고 출발지와 도착지를 선택하세요.</p>
+<label for="from">출발지</label><div class="row"><input id="from" placeholder="예: 달성군청"><button id="from-search" type="button">검색</button></div><div id="from-results" class="results"></div><p id="from-selected" class="selected"></p>
+<label for="to">도착지</label><div class="row"><input id="to" placeholder="예: 달성군 장애인복지관"><button id="to-search" type="button">검색</button></div><div id="to-results" class="results"></div><p id="to-selected" class="selected"></p>
+<p id="status" role="status">지도를 불러오는 중입니다.</p><button id="route-link" class="go" type="button" disabled>벗길에서 길찾기</button><div id="route-details" aria-live="polite"></div>
+<p class="note">카카오맵의 일반 도보 경로를 표시합니다. 경사로, 계단, 단차와 재난 위험은 아직 반영되지 않습니다.</p></section>
+<section class="mapsection"><div id="map" aria-label="달성군 카카오맵"></div></section></main>
+<script>
+let map, places, routeLine;
+let routeRequest = 0;
+const selected = {from:null,to:null};
+const markers = {from:null,to:null};
+const get = id => document.getElementById(id);
+function setStatus(message){get('status').textContent=message}
+function updateLink(){
+  get('route-link').disabled = !selected.from || !selected.to;
+}
+function clearRoute(){
+  routeRequest++;
+  if(routeLine){routeLine.setMap(null);routeLine=null}
+  get('route-details').replaceChildren();
+}
+async function findRoute(){
+  if(!selected.from || !selected.to) return;
+  clearRoute();
+  const request = routeRequest;
+  const button=get('route-link');
+  button.disabled=true;
+  setStatus('도보 경로를 찾고 있습니다.');
+  const params=new URLSearchParams({start_x:selected.from.x,start_y:selected.from.y,end_x:selected.to.x,end_y:selected.to.y});
+  try{
+    const response=await fetch('/api/route?'+params);
+    const data=await response.json();
+    if(request!==routeRequest) return;
+    if(!response.ok || data.status!=='OK') throw new Error(data.message || '경로를 찾지 못했습니다.');
+    const steps=data.route.legs.flatMap(leg=>leg.steps);
+    const path=steps.flatMap(step=>(step.path?.points || []).map(([x,y])=>new kakao.maps.LatLng(y,x)));
+    if(path.length<2) throw new Error('경로 좌표를 받지 못했습니다.');
+    routeLine=new kakao.maps.Polyline({map,path,strokeWeight:6,strokeColor:'#a97c00',strokeOpacity:0.9,strokeStyle:'solid'});
+    const bounds=new kakao.maps.LatLngBounds();path.forEach(point=>bounds.extend(point));map.setBounds(bounds,60,60,60,60);
+    const summary=document.createElement('p');
+    summary.textContent='거리 '+data.route.properties.totalDistance.toLocaleString('ko-KR')+'m · 도보 약 '+Math.ceil(data.route.properties.totalTime/60)+'분';
+    const list=document.createElement('ol');
+    steps.forEach(step=>{if(step.properties?.guidance){const item=document.createElement('li');item.textContent=step.properties.guidance;list.append(item)}});
+    get('route-details').append(summary,list);
+    setStatus('일반 도보 경로입니다. 휠체어 통행 가능 여부는 확인되지 않았습니다.');
+  }catch(error){if(request===routeRequest)setStatus(error.message || '경로를 불러오지 못했습니다.');}
+  finally{if(request===routeRequest)updateLink();}
+}
+get('route-link').addEventListener('click',findRoute);
+function choosePlace(type,place){
+  clearRoute();
+  selected[type]=place;
+  get(type).value=place.place_name;
+  get(type+'-selected').textContent='선택됨 · '+place.place_name+' · '+(place.road_address_name || place.address_name);
+  get(type+'-results').replaceChildren();
+  if(markers[type]) markers[type].setMap(null);
+  const position=new kakao.maps.LatLng(Number(place.y),Number(place.x));
+  markers[type]=new kakao.maps.Marker({map,position,title:type==='from'?'출발지':'도착지'});
+  const active=Object.values(selected).filter(Boolean);
+  if(active.length===2){
+    const bounds=new kakao.maps.LatLngBounds();
+    active.forEach(item=>bounds.extend(new kakao.maps.LatLng(Number(item.y),Number(item.x))));
+    map.setBounds(bounds,60,60,60,60);
+  } else map.setCenter(position);
+  updateLink();
+  setStatus(active.length===2?'길찾기 버튼을 눌러 경로를 확인하세요.':'다른 장소를 선택하세요.');
+}
+function searchPlace(type){
+  if(!places){setStatus('지도를 불러오지 못했습니다. 카카오맵 키와 등록된 도메인을 확인하세요.');return}
+  const query=get(type).value.trim();
+  if(!query){setStatus('검색할 장소를 입력하세요.');return}
+  setStatus('장소를 검색하고 있습니다.');
+  places.keywordSearch(query, (results,status)=>{
+    const list=get(type+'-results');list.replaceChildren();
+    if(status!==kakao.maps.services.Status.OK){setStatus(status===kakao.maps.services.Status.ZERO_RESULT?'검색 결과가 없습니다. 달성군과 장소명을 함께 입력해 보세요.':'검색에 실패했습니다. 잠시 후 다시 시도해 주세요.');return}
+    const nearby=results.filter(place=>(place.address_name || '').includes('달성군'));
+    if(!nearby.length){setStatus('검색 결과에서 달성군 장소를 찾지 못했습니다. 장소명을 더 자세히 입력해 주세요.');return}
+    nearby.slice(0,5).forEach(place=>{
+      const button=document.createElement('button');button.type='button';button.className='result';
+      const name=document.createElement('span');name.textContent=place.place_name;
+      const address=document.createElement('small');address.textContent=place.road_address_name || place.address_name;
+      button.append(name,address);button.addEventListener('click',()=>choosePlace(type,place));list.append(button);
+    });
+    setStatus('목록에서 장소를 선택하세요.');
+  },{location:new kakao.maps.LatLng(35.7739,128.4309),radius:20000});
+}
+for(const type of ['from','to']){
+  get(type+'-search').addEventListener('click',()=>searchPlace(type));
+  get(type).addEventListener('input',()=>{clearRoute();selected[type]=null;get(type+'-selected').textContent='';get(type+'-results').replaceChildren();if(markers[type]){markers[type].setMap(null);markers[type]=null}updateLink()});
+  get(type).addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();searchPlace(type)}});
+}
+function initMap(){
+  if(!window.kakao?.maps?.load){setStatus('카카오맵을 불러오지 못했습니다. 키와 도메인을 확인하세요.');return}
+  kakao.maps.load(()=>{
+    map=new kakao.maps.Map(get('map'),{center:new kakao.maps.LatLng(35.7739,128.4309),level:6});
+    places=new kakao.maps.services.Places();
+    setStatus('출발지와 도착지를 검색해 주세요.');
+  });
+}
+</script><script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=4b858c028a3e0f7419a8dbf09f9dda98&amp;autoload=false&amp;libraries=services" onload="initMap()" onerror="setStatus('카카오맵을 불러오지 못했습니다. 네트워크와 도메인 설정을 확인하세요.')"></script></body></html>
