@@ -105,6 +105,8 @@ class BeotgilHandler(SimpleHTTPRequestHandler):
             return self.send_json(502, {"message": "공공데이터 편의시설 정보를 조회하지 못했습니다. 인증키와 API 이용 상태를 확인해 주세요."})
 
     def do_POST(self):
+        if urlsplit(self.path).path == "/api/facility-corrections":
+            return self.saveFacilityCorrection()
         if urlsplit(self.path).path != "/api/suggestions":
             return self.send_error(404)
         try:
@@ -120,6 +122,27 @@ class BeotgilHandler(SimpleHTTPRequestHandler):
         with sqlite3.connect(database_path) as connection:
             connection.execute("INSERT INTO suggestions (content) VALUES (?)", (content.strip(),))
         self.send_json(201, {"message": "건의 사항이 저장되었습니다."})
+
+    def saveFacilityCorrection(self):
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if not 0 < length <= 10000:
+                raise ValueError()
+            data = json.loads(self.rfile.read(length))
+            name, address, content = (data.get(key, "") for key in ("place_name", "address", "content"))
+            if not all(isinstance(value, str) for value in (name, address, content)):
+                raise ValueError()
+            name, address, content = name.strip(), address.strip(), content.strip()
+            lat, lon = float(data["lat"]), float(data["lon"])
+            if not (1 <= len(name) <= 200 and len(address) <= 300 and 1 <= len(content) <= 1000):
+                raise ValueError()
+            if not (math.isfinite(lat) and math.isfinite(lon) and 33 <= lat <= 39 and 124 <= lon <= 132):
+                raise ValueError()
+        except (ValueError, TypeError, AttributeError, KeyError):
+            return self.send_json(400, {"message": "장소와 정정 내용을 확인해 주세요."})
+        with sqlite3.connect(database_path) as connection:
+            connection.execute("INSERT INTO facility_corrections (place_name, address, lat, lon, content) VALUES (?, ?, ?, ?, ?)", (name, address, lat, lon, content))
+        self.send_json(201, {"message": "정정 요청이 저장되었습니다."})
 
     def get_suggestions(self):
         with sqlite3.connect(database_path) as connection:
@@ -139,5 +162,6 @@ if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     database_path = os.environ.get("BEOTGIL_DATA_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "beotgil-data.sqlite3"))
     with sqlite3.connect(database_path) as connection:
+        connection.execute("CREATE TABLE IF NOT EXISTS facility_corrections (id INTEGER PRIMARY KEY, place_name TEXT NOT NULL, address TEXT NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
         connection.execute("CREATE TABLE IF NOT EXISTS suggestions (id INTEGER PRIMARY KEY, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
     ThreadingHTTPServer(("127.0.0.1", 8081), BeotgilHandler).serve_forever()
