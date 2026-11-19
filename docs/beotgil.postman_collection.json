@@ -55,6 +55,23 @@
         "method": "GET",
         "url": "http://localhost:8081/api/facility?name=달성군청&lat=35.7739&lon=128.4309"
       }
+    },
+    {
+      "name": "편의시설 정정 요청",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"place_name\": \"달성군청\", \"address\": \"대구 달성군 논공읍 달성군청로 33\", \"lat\": 35.7739, \"lon\": 128.4309, \"content\": \"출입구 정보를 확인해 주세요.\"}"
+        },
+        "url": "http://localhost:8081/api/facility-corrections"
+      }
     }
   ]
 }
