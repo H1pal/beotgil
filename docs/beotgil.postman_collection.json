@@ -1,0 +1,60 @@
+{
+  "info": {
+    "name": "벗길 API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "건의 사항 조회",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8081/api/suggestions"
+      }
+    },
+    {
+      "name": "건의 사항 등록",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"content\":\"접근 가능한 출입구를 알려주세요\"}"
+        },
+        "url": "http://localhost:8081/api/suggestions"
+      }
+    },
+    {
+      "name": "walk 경로 조회",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8081/api/route?start_x=128.4309&start_y=35.7739&end_x=128.435&end_y=35.78&mode=walk"
+      }
+    },
+    {
+      "name": "transit 경로 조회",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8081/api/route?start_x=128.4309&start_y=35.7739&end_x=128.435&end_y=35.78&mode=transit"
+      }
+    },
+    {
+      "name": "car 경로 조회",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8081/api/route?start_x=128.4309&start_y=35.7739&end_x=128.435&end_y=35.78&mode=car"
+      }
+    },
+    {
+      "name": "시설 편의정보 조회",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8081/api/facility?name=달성군청&lat=35.7739&lon=128.4309"
+      }
+    }
+  ]
+}

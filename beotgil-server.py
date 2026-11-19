@@ -1,19 +1,27 @@
 import json
 import os
 import ssl
+import sqlite3
+import math
+import xml.etree.ElementTree as ET
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qs, urlencode, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit, unquote
 from urllib.request import Request, urlopen
 
 class BeotgilHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         url = urlsplit(self.path)
+        if url.path == "/api/facility":
+            return self.get_facility(url.query)
+        if url.path == "/api/suggestions":
+            return self.get_suggestions()
         if url.path == "/":
             self.path = "/index.html"
             return super().do_GET()
         if url.path != "/api/route":
-            return super().do_GET()
+            self.send_error(404)
+            return
         key = os.environ.get("BEOTGIL_KAKAO_REST_KEY")
         if not key:
             return self.send_json(503, {"message": "서버에 카카오 REST API 키가 설정되지 않았습니다."})
@@ -27,7 +35,17 @@ class BeotgilHandler(SimpleHTTPRequestHandler):
                 raise ValueError()
         except (KeyError, ValueError, IndexError):
             return self.send_json(400, {"message": "출발지와 도착지 좌표를 확인해 주세요."})
-        request = Request("https://dapi.kakao.com/v2/routing/walk?" + urlencode(values),
+        mode = params.get("mode", ["walk"])[0]
+        if mode not in ("walk", "transit", "car"):
+            return self.send_json(400, {"message": "지원하지 않는 이동 수단입니다."})
+        if mode == "car":
+            endpoint = "https://apis-navi.kakaomobility.com/v1/directions"
+            query = {"origin": f"{values['start_x']},{values['start_y']}",
+                     "destination": f"{values['end_x']},{values['end_y']}", "summary": "false"}
+        else:
+            endpoint = "https://dapi.kakao.com/v2/routing/" + ("walk" if mode == "walk" else "publictraffic")
+            query = values
+        request = Request(endpoint + "?" + urlencode(query),
                           headers={"Authorization": "KakaoAK " + key})
         try:
             with urlopen(request, timeout=15, context=ssl.create_default_context(cafile="/etc/ssl/cert.pem")) as response:
@@ -37,6 +55,76 @@ class BeotgilHandler(SimpleHTTPRequestHandler):
         except (URLError, TimeoutError, ValueError):
             return self.send_json(502, {"message": "카카오 경로 API에 연결하지 못했습니다."})
         self.send_json(200, data)
+
+    def get_facility(self, query):
+        key = os.environ.get("BEOTGIL_PUBLIC_DATA_KEY")
+        if not key:
+            return self.send_json(503, {"message": "공공데이터 인증키가 설정되지 않았습니다."})
+        params = parse_qs(query)
+        name = params.get("name", [""])[0].strip()
+        try:
+            lat = float(params["lat"][0])
+            lon = float(params["lon"][0])
+            if not name or len(name) > 100 or not (33 <= lat <= 39 and 124 <= lon <= 132):
+                raise ValueError()
+        except (KeyError, ValueError, IndexError):
+            return self.send_json(400, {"message": "장소 이름과 좌표를 확인해 주세요."})
+        endpoint = "https://apis.data.go.kr/B554287/DisabledPersonConvenientFacility/"
+        def read_xml(operation, parameters):
+            parameters["serviceKey"] = unquote(key)
+            request = Request(endpoint + operation + "?" + urlencode(parameters))
+            with urlopen(request, timeout=20, context=ssl.create_default_context(cafile="/etc/ssl/cert.pem")) as response:
+                root = ET.fromstring(response.read())
+            code = root.findtext(".//resultCode")
+            if code not in ("0", "00", "0000"):
+                raise ValueError("공공데이터 API 오류")
+            return root
+        try:
+            root = read_xml("getDisConvFaclList", {"faclNm": name, "siDoNm": "대구광역시", "cggNm": "달성군", "numOfRows": 100, "pageNo": 1})
+            def normalize(value):
+                return "".join(value.split()).casefold()
+            matches = []
+            for item in root.findall(".//servList") + root.findall(".//item"):
+                if normalize(item.findtext("faclNm", "")) != normalize(name):
+                    continue
+                try:
+                    item_lat = float(item.findtext("faclLat", ""))
+                    item_lon = float(item.findtext("faclLng", ""))
+                except ValueError:
+                    continue
+                distance = math.hypot((item_lat - lat) * 111000, (item_lon - lon) * 111000 * math.cos(math.radians(lat)))
+                if distance <= 50 and item.findtext("wfcltId"):
+                    matches.append((distance, item))
+            if len(matches) != 1:
+                return self.send_json(200, {"status": "unknown", "message": "일치하는 시설을 확인하지 못했습니다."})
+            item = matches[0][1]
+            details = read_xml("getFacInfoOpenApiJpEvalInfoList", {"wfcltId": item.findtext("wfcltId")})
+            info = [element.text.strip() for element in details.findall(".//evalInfo") if element.text and element.text.strip()]
+            return self.send_json(200, {"status": "found" if info else "unknown", "name": item.findtext("faclNm"), "address": item.findtext("lcMnad", ""), "facilities": info})
+        except (HTTPError, URLError, TimeoutError, ValueError, ET.ParseError):
+            return self.send_json(502, {"message": "공공데이터 편의시설 정보를 조회하지 못했습니다. 인증키와 API 이용 상태를 확인해 주세요."})
+
+    def do_POST(self):
+        if urlsplit(self.path).path != "/api/suggestions":
+            return self.send_error(404)
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if not 0 < length <= 10000:
+                raise ValueError()
+            data = json.loads(self.rfile.read(length))
+            content = data.get("content", "")
+            if not isinstance(content, str) or not 1 <= len(content.strip()) <= 1000:
+                raise ValueError()
+        except (ValueError, TypeError, AttributeError):
+            return self.send_json(400, {"message": "건의 사항은 1~1000자로 입력해 주세요."})
+        with sqlite3.connect(database_path) as connection:
+            connection.execute("INSERT INTO suggestions (content) VALUES (?)", (content.strip(),))
+        self.send_json(201, {"message": "건의 사항이 저장되었습니다."})
+
+    def get_suggestions(self):
+        with sqlite3.connect(database_path) as connection:
+            rows = connection.execute("SELECT content, created_at FROM suggestions ORDER BY id DESC LIMIT 50").fetchall()
+        self.send_json(200, {"suggestions": [{"content": row[0], "created_at": row[1]} for row in rows]})
 
     def send_json(self, status, data):
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
@@ -49,4 +137,7 @@ class BeotgilHandler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    database_path = os.environ.get("BEOTGIL_DATA_PATH", os.path.join(os.path.dirname(os.path.abspath(__file__)), "beotgil-data.sqlite3"))
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("CREATE TABLE IF NOT EXISTS suggestions (id INTEGER PRIMARY KEY, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")
     ThreadingHTTPServer(("127.0.0.1", 8081), BeotgilHandler).serve_forever()
