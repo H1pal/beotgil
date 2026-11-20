@@ -72,6 +72,13 @@
         },
         "url": "http://localhost:8081/api/facility-corrections"
       }
+    },
+    {
+      "name": "지진 옥외 대피장소 조회",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8081/api/earthquake-shelters"
+      }
     }
   ]
 }

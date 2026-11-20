@@ -20,3 +20,6 @@ Python 3에서 카카오 REST API 키를 환경변수 `BEOTGIL_KAKAO_REST_KEY`�
 
 
 선택한 출발지와 도착지는 이 브라우저에 저장할 수 있고, 최근 선택한 장소 10개를 다시 사용할 수 있습니다. 저장 장소는 기기별로 관리됩니다. 도착지 편의시설 정정 요청은 `beotgil-data.sqlite3`의 `facility_corrections` 테이블에 검토 대기 상태로 저장되며, 공공데이터를 자동으로 수정하지 않습니다. 관리자는 SQLite에서 해당 테이블을 조회할 수 있습니다. API는 `docs/facility-corrections-api.md`를 참고하세요.
+
+
+지진 옥외 대피장소를 보려면 재난안전데이터 공유플랫폼의 해당 API 서비스키를 서버 환경변수 `BEOTGIL_SAFETY_DATA_KEY`에 설정하고 서버를 재시작합니다. `지진 대피장소` 버튼으로 달성군 장소를 표시합니다. 현재 위치에서 가까운 후보 5곳의 일반 도보 시간을 비교하며, 휠체어 접근성·현재 위험·실제 운영 여부는 반영되지 않습니다. 자세한 API는 `docs/earthquake-shelters-api.md`를 참고하세요.
