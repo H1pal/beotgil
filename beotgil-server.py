@@ -12,6 +12,8 @@ from urllib.request import Request, urlopen
 class BeotgilHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         url = urlsplit(self.path)
+        if url.path == "/api/integrated-shelters":
+            return self.getIntegratedShelters(url.query)
         if url.path == "/api/earthquake-shelters":
             return self.getEarthquakeShelters()
         if url.path == "/api/facility":
@@ -57,6 +59,59 @@ class BeotgilHandler(SimpleHTTPRequestHandler):
         except (URLError, TimeoutError, ValueError):
             return self.send_json(502, {"message": "카카오 경로 API에 연결하지 못했습니다."})
         self.send_json(200, data)
+
+    def getIntegratedShelters(self, query):
+        key = os.environ.get("BEOTGIL_INTEGRATED_SAFETY_KEY")
+        if not key:
+            return self.send_json(503, {"message": "통합대피소 API 서비스키가 설정되지 않았습니다."})
+        shelter_type = parse_qs(query).get("type", ["3"])[0]
+        if shelter_type not in ("1", "2", "3", "4"):
+            return self.send_json(400, {"message": "쉼터 종류를 확인해 주세요."})
+        shelters = []
+        seen = set()
+        try:
+            for page in range(1, 21):
+                params = {"serviceKey": key, "returnType": "json", "pageNo": page, "numOfRows": 1000,
+                          "startLot": 128.20, "endLot": 128.60, "startLat": 35.50, "endLat": 35.80,
+                          "shlt_se_cd": shelter_type}
+                request = Request("https://www.safetydata.go.kr/V2/api/DSSP-IF-10941?" + urlencode(params))
+                with urlopen(request, timeout=20, context=ssl.create_default_context(cafile="/etc/ssl/cert.pem")) as response:
+                    data = json.load(response)
+                header = data.get("header", {}) if isinstance(data, dict) else {}
+                code = str(header.get("resultCode", ""))
+                if code == "32":
+                    return self.send_json(502, {"message": "재난안전데이터에 등록된 서버 IP를 확인해 주세요."})
+                if code not in ("0", "00", "0000"):
+                    return self.send_json(502, {"message": "통합대피소 API 오류 코드: " + code})
+                rows = data.get("body") or []
+                if not isinstance(rows, list):
+                    raise ValueError("응답 형식 오류")
+                for row in rows:
+                    if not isinstance(row, dict):
+                        continue
+                    address = str(row.get("RONA_DADDR") or "")
+                    codes = [code.strip() for code in str(row.get("SHLT_SE_CD") or "").split(",")]
+                    if "달성군" not in address or not ("구지읍" in address or "구지면" in address) or shelter_type not in codes:
+                        continue
+                    try:
+                        lat, lon = float(row["LAT"]), float(row["LOT"])
+                    except (KeyError, ValueError, TypeError):
+                        continue
+                    if not (35.50 <= lat <= 35.80 and 128.20 <= lon <= 128.60):
+                        continue
+                    identifier = str(row.get("MNG_SN") or (address + str(lat) + str(lon)))
+                    if identifier in seen:
+                        continue
+                    seen.add(identifier)
+                    shelters.append({"id": identifier, "name": str(row.get("REARE_NM") or "이름 없음"), "address": address,
+                                     "lat": lat, "lon": lon, "type": str(row.get("SHLT_SE_NM") or "")})
+                if len(rows) < 1000:
+                    break
+            else:
+                return self.send_json(502, {"message": "자료가 많아 전체 대피장소를 불러오지 못했습니다."})
+        except (HTTPError, URLError, TimeoutError, ValueError, TypeError):
+            return self.send_json(502, {"message": "통합대피소 정보를 조회하지 못했습니다."})
+        self.send_json(200, {"shelters": shelters, "source": "행정안전부 통합대피소", "area": "달성군 구지읍"})
 
     def getEarthquakeShelters(self):
         key = os.environ.get("BEOTGIL_SAFETY_DATA_KEY")

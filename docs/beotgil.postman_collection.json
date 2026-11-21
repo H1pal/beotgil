@@ -79,6 +79,13 @@
         "method": "GET",
         "url": "http://localhost:8081/api/earthquake-shelters"
       }
+    },
+    {
+      "name": "구지읍 통합대피소 조회",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8081/api/integrated-shelters?type=3"
+      }
     }
   ]
 }
