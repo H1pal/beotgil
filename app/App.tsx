@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { Alert, Animated, BackHandler, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import MapView, { Marker, Polyline, Region } from 'react-native-maps';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -12,12 +12,14 @@ import { FeedbackPanel } from './src/FeedbackPanel';
 import { ShelterPanel } from './src/ShelterPanel';
 import { Feature, WalkingPanel } from './src/WalkingPanel';
 import { usePlaces } from './src/usePlaces';
+import { initialSheet, sheetReducer, type Panel } from './src/sheet';
 
-type Panel = 'route' | 'feedback' | 'shelters' | 'walking';
 function Beotgil() {
   const insets = useSafeAreaInsets(), { height, width } = useWindowDimensions();
   const map = useRef<MapView>(null), scroll = useRef<React.ComponentRef<typeof ScrollView>>(null), version = useRef(0), locationBusy = useRef(false);
-  const [panel, setPanel] = useState<Panel>('route'), [expanded, setExpanded] = useState(false);
+  const [{ panel, expanded }, dispatchSheet] = useReducer(sheetReducer, initialSheet);
+  const sheetAnimation = useRef(new Animated.Value(0)).current;
+  const sheetVisible = panel !== null;
   const [from, setFrom] = useState<Place | null>(null), [to, setTo] = useState<Place | null>(null);
   const [route, setRoute] = useState<Route | null>(null), [alternative, setAlternative] = useState<{ mode: Mode; route: Route } | null>(null);
   const [busy, setBusy] = useState(false), [status, setStatus] = useState('출발지와 도착지를 검색해 주세요.');
@@ -29,11 +31,24 @@ function Beotgil() {
   const pinsShelter = useCallback((items: Shelter[]) => setShelters(items), []);
   const pinsFeatures = useCallback((items: Feature[]) => setFeatures(items), []);
   useEffect(() => () => { ++version.current; }, []);
+  useEffect(() => {
+    const animation = Animated.timing(sheetAnimation, { toValue: sheetVisible ? 1 : 0, duration: 220, useNativeDriver: true });
+    animation.start();
+    return () => animation.stop();
+  }, [sheetVisible, sheetAnimation]);
+  useEffect(() => {
+    if (!sheetVisible) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { close(); return true; });
+    return () => subscription.remove();
+  }, [sheetVisible]);
+  function close() { Keyboard.dismiss(); dispatchSheet({ type: 'close' }); }
+  function resize(expanded: boolean) { dispatchSheet({ type: 'resize', expanded }); }
   function focus(p: Coordinate) {
-    Keyboard.dismiss(); setExpanded(false);
+    Keyboard.dismiss(); resize(false);
     map.current?.animateToRegion({ ...p, latitudeDelta: 0.008, longitudeDelta: 0.008 }, 400);
   }
-  function open(next: Panel, expand = true) { Keyboard.dismiss(); setPanel(next); setExpanded(expand); scroll.current?.scrollTo({ y: 0, animated: false }); }
+  function open(next: Panel, expand = true) { Keyboard.dismiss(); dispatchSheet({ type: 'open', panel: next, expanded: expand }); scroll.current?.scrollTo({ y: 0, animated: false }); }
+  function toggle(next: Panel) { Keyboard.dismiss(); dispatchSheet({ type: 'toggle', panel: next }); scroll.current?.scrollTo({ y: 0, animated: false }); }
   function clearRoute() { ++version.current; setRoute(null); setAlternative(null); setBusy(false); setStatus('장소를 선택한 후 길찾기를 눌러 주세요.'); }
   function select(side: 'from' | 'to', p: Place | null) {
     clearRoute(); (side === 'from' ? setFrom : setTo)(p);
@@ -49,7 +64,7 @@ function Beotgil() {
       const result = await findRoute(start, end, mode);
       if (id !== version.current) return;
       if (mode === 'walk') setRoute(result); else setAlternative({ mode, route: result });
-      setStatus('경로를 확인했습니다. 이용 전 보행로 정보를 확인해 주세요.'); setExpanded(false);
+      setStatus('경로를 확인했습니다. 이용 전 보행로 정보를 확인해 주세요.'); resize(false);
       const points = result.segments.flat();
       if (points.length) map.current?.fitToCoordinates(points, { edgePadding: { top: insets.top + 145, right: 45, bottom: landscape ? 45 : height * 0.30 + 130, left: landscape ? width * 0.45 : 45 }, animated: true });
     } catch (error) { if (id === version.current) setStatus(message(error)); }
@@ -90,35 +105,37 @@ function Beotgil() {
       {shelters.map(p => <Marker key={p.id} coordinate={{ latitude: p.lat, longitude: p.lon }} title={p.name} description={`${p.type || '대피장소'} · ${p.address}`} pinColor="#836800" />)}
       {features.map(p => <Marker key={p.id} coordinate={p} title={p.name} description={p.detail} pinColor="#755C00" />)}
     </MapView>
-    <View style={[s.top, { top: insets.top + 12, right: 14, left: landscape ? width * 0.44 + 14 : 14 }]}>
+    <View style={[s.top, { top: insets.top + 12, right: 14, left: landscape && sheetVisible ? width * 0.44 + 14 : 14 }]}>
       <Pressable accessibilityRole="button" accessibilityLabel="장소 검색과 길찾기 열기" onPress={() => open('route')} style={s.search}>
         <Text style={s.brand}>벗길</Text><Text style={s.searchLabel}>어디로 이동하시나요?</Text><Text style={s.searchAction}>길찾기</Text>
       </Pressable>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
-        <Button title="대피장소·쉼터" selected={panel === 'shelters'} onPress={() => open('shelters')} />
-        <Button title="계단·경사로" selected={panel === 'walking'} onPress={() => open('walking', false)} />
+        <Button title="대피장소·쉼터" selected={panel === 'shelters'} onPress={() => toggle('shelters')} />
+        <Button title="계단·경사로" selected={panel === 'walking'} onPress={() => toggle('walking')} />
       </ScrollView>
     </View>
-    <View style={[s.mapButtons, { bottom: landscape ? insets.bottom + 24 : sheetHeight + insets.bottom + 96 }]}>
+    <View style={[s.mapButtons, { bottom: landscape ? insets.bottom + 96 : (sheetVisible ? sheetHeight : 0) + insets.bottom + 96 }]}>
       <Button title="◎" label="현재 위치로 지도 이동" onPress={() => { void currentLocation(); }} />
       <Button title="＋" label="지도 확대" onPress={() => map.current?.animateToRegion({ ...region, latitudeDelta: region.latitudeDelta / 2, longitudeDelta: region.longitudeDelta / 2 }, 250)} />
       <Button title="−" label="지도 축소" onPress={() => map.current?.animateToRegion({ ...region, latitudeDelta: Math.min(90, region.latitudeDelta * 2), longitudeDelta: Math.min(180, region.longitudeDelta * 2) }, 250)} />
     </View>
-    <KeyboardAvoidingView pointerEvents="box-none" behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0} style={[s.sheetFrame, landscape ? { top: insets.top + 8, bottom: insets.bottom + 84, width: width * 0.43 } : { bottom: insets.bottom + 84, height: sheetHeight }]}>
+    <Animated.View pointerEvents={sheetVisible ? 'box-none' : 'none'} accessibilityElementsHidden={!sheetVisible} importantForAccessibility={sheetVisible ? 'auto' : 'no-hide-descendants'} style={[StyleSheet.absoluteFill, { transform: [{ translateY: sheetAnimation.interpolate({ inputRange: [0, 1], outputRange: [height, 0] }) }] }]}>
+    <KeyboardAvoidingView pointerEvents={sheetVisible ? 'box-none' : 'none'} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0} style={[s.sheetFrame, landscape ? { top: insets.top + 8, bottom: insets.bottom + 84, width: width * 0.43 } : { bottom: insets.bottom + 84, height: sheetHeight }]}>
       <View style={s.sheet}>
-        <Pressable accessibilityRole="button" accessibilityLabel={expanded ? '패널 접기' : '패널 펼치기'} accessibilityState={{ expanded }} onPress={() => { Keyboard.dismiss(); setExpanded(!expanded); }} style={s.handleButton}><View style={s.handle} /></Pressable>
-        <View style={s.sheetHeader}><Text accessibilityRole="header" style={s.sheetTitle}>{titles[panel]}</Text><Text style={s.sheetSubtitle}>휠체어 이동을 위한 지도</Text></View>
+        <Pressable accessibilityRole="button" accessibilityLabel={expanded ? '패널 접기' : '패널 펼치기'} accessibilityState={{ expanded }} onPress={() => { Keyboard.dismiss(); resize(!expanded); }} style={s.handleButton}><View style={s.handle} /></Pressable>
+        <View style={s.sheetHeader}><View style={s.sheetHeading}><Text accessibilityRole="header" style={s.sheetTitle}>{panel ? titles[panel] : ''}</Text><Text style={s.sheetSubtitle}>휠체어 이동을 위한 지도</Text></View><Button title="닫기" label="패널 닫기" onPress={close} /></View>
         <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={s.content}>
-          <View style={panel !== 'route' && { display: 'none' }}><RoutePanel from={from} to={to} route={route} alternative={alternative} status={status} busy={busy} places={places} onSelect={select} onExpand={() => setExpanded(true)} onRoute={mode => { void routeFor(mode); }} onLocate={() => { void currentLocation(true); }} /></View>
+          <View style={panel !== 'route' && { display: 'none' }}><RoutePanel from={from} to={to} route={route} alternative={alternative} status={status} busy={busy} places={places} onSelect={select} onExpand={() => resize(true)} onRoute={mode => { void routeFor(mode); }} onLocate={() => { void currentLocation(true); }} /></View>
           <View style={panel !== 'feedback' && { display: 'none' }}><FeedbackPanel destination={to} onChoose={() => open('route')} /></View>
           {panel === 'shelters' && <ShelterPanel onPins={pinsShelter} onFocus={focus} onDestination={p => { select('to', p); open('route'); }} locate={locate} onPair={pair} />}
           {panel === 'walking' && <WalkingPanel region={region} onPins={pinsFeatures} onFocus={focus} />}
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
+    </Animated.View>
     <View style={[s.nav, { bottom: insets.bottom + 8 }]}>
-      <Pressable accessibilityRole="tab" accessibilityState={{ selected: panel !== 'feedback' }} onPress={() => open('route', false)} style={[s.tab, panel !== 'feedback' && s.active]}><Text style={s.tabText}>↗　길찾기</Text></Pressable>
-      <Pressable accessibilityRole="tab" accessibilityState={{ selected: panel === 'feedback' }} onPress={() => open('feedback')} style={[s.tab, panel === 'feedback' && s.active]}><Text style={s.tabText}>✎　건의사항</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: panel === 'route', selected: panel === 'route' }} onPress={() => toggle('route')} style={[s.tab, panel === 'route' && s.active]}><Text style={[s.tabText, panel === 'route' && s.activeText]}>↗　길찾기</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: panel === 'feedback', selected: panel === 'feedback' }} onPress={() => toggle('feedback')} style={[s.tab, panel === 'feedback' && s.active]}><Text style={[s.tabText, panel === 'feedback' && s.activeText]}>✎　건의사항</Text></Pressable>
     </View>
   </View>;
 }
@@ -130,7 +147,7 @@ const s = StyleSheet.create({
   chips: { gap: 8, paddingBottom: 4 }, mapButtons: { position: 'absolute', right: 14, gap: 6 },
   sheetFrame: { position: 'absolute', left: 0, right: 0 }, sheet: { flex: 1, backgroundColor: colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, elevation: 6, shadowColor: colors.ink, shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: -3 }, overflow: 'hidden' },
   handleButton: { height: 44, alignItems: 'center', justifyContent: 'center' }, handle: { height: 5, width: 44, backgroundColor: '#BEBBAD', borderRadius: 3 },
-  sheetHeader: { paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderColor: colors.border }, sheetTitle: { fontSize: 20, fontWeight: '800', color: colors.ink }, sheetSubtitle: { fontSize: 12, color: colors.muted, marginTop: 4 }, content: { padding: 20, paddingBottom: 32 },
+  sheetHeader: { paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 8 }, sheetHeading: { flex: 1 }, sheetTitle: { fontSize: 20, fontWeight: '800', color: colors.ink }, sheetSubtitle: { fontSize: 12, color: colors.muted, marginTop: 4 }, content: { padding: 20, paddingBottom: 32 },
   nav: { position: 'absolute', left: 10, right: 10, minHeight: 64, padding: 6, flexDirection: 'row', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border, borderRadius: 36, elevation: 5, shadowColor: colors.ink, shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, gap: 6 },
-  tab: { flex: 1, minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 28 }, active: { backgroundColor: colors.yellow }, tabText: { fontSize: 16, fontWeight: '700', color: colors.ink },
+  tab: { flex: 1, minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 28 }, active: { backgroundColor: colors.yellow }, tabText: { fontSize: 16, fontWeight: '700', color: colors.muted }, activeText: { color: colors.ink },
 });
